@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Flashcards – English ↔ Español</title>
+<style>
+  :root {
+    --bg:#0f172a; --card:#111827; --ink:#e5e7eb; --muted:#9ca3af; --accent:#4f46e5; --accent-2:#2563eb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; padding:16px; background:linear-gradient(135deg,#0b1220,#1f2937);
+    color:var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif;
+    min-height:100svh; display:grid; place-items:center;
+  }
+  .wrap { width:min(720px,100%); display:flex; flex-direction:column; gap:16px; }
+  header { text-align:center; }
+  header h1 { font-size:20px; margin:4px 0; font-weight:700; letter-spacing:.2px; }
+  header p { margin:0; font-size:13px; color:var(--muted); }
+  #card {
+    background:var(--card); border-radius:16px; padding:28px; box-shadow: 0 10px 30px rgba(0,0,0,.45);
+    text-align:center; min-height:180px; display:flex; align-items:center; justify-content:center;
+    user-select:none; -webkit-user-select:none; touch-action:manipulation;
+  }
+  #word { font-size: clamp(22px, 4.5vw, 34px); line-height:1.25; }
+  .sub { margin-top:8px; font-size:13px; color:var(--muted); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  button {
+    flex:1 1 auto; min-width:120px;
+    padding:14px 16px; border:none; border-radius:12px; color:white; background:var(--accent);
+    font-size:16px; font-weight:600; letter-spacing:.2px; cursor:pointer; touch-action:manipulation;
+  }
+  button:active { transform: translateY(1px); }
+  .ghost { background:#374151; }
+  .alt { background:var(--accent-2); }
+  .bar { display:flex; align-items:center; gap:8px; justify-content:space-between; color:var(--muted); font-size:13px; }
+  .progress { height:8px; background:#1f2937; border-radius:999px; overflow:hidden; flex:1; }
+  .progress > div { height:100%; background:linear-gradient(90deg,#22c55e,#06b6d4); width:0%; }
+  footer { text-align:center; font-size:12px; color:var(--muted); }
+  a { color:#93c5fd; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Flashcards – English ↔ Español</h1>
+    <p>Tap the card to flip. Use buttons or swipe left/right.</p>
+  </header>
+
+  <div id="card" role="button" aria-label="Flashcard – tap to flip">
+    <div id="word">Loading…</div>
+  </div>
+  <div class="sub" id="sub">Front: English • Back: Español</div>
+
+  <div class="bar">
+    <span id="count">0 / 0</span>
+    <div class="progress"><div id="prog"></div></div>
+  </div>
+
+  <div class="row">
+    <button class="ghost" onclick="prevCard()" aria-label="Previous">⟨ Prev</button>
+    <button onclick="flipCard()" aria-label="Flip">Flip ↻</button>
+    <button class="alt" onclick="nextCard()" aria-label="Next">Next ⟩</button>
+  </div>
+  <div class="row">
+    <button onclick="shuffleCards()">Shuffle 🔀</button>
+    <button onclick="toggleFront()">Reverse (Show Español first)</button>
+    <button class="ghost" onclick="resetOrder()">Reset ↺</button>
+  </div>
+
+  <footer>
+    <div>Works fully offline when opened in Safari. Add to Home Screen for app‑like use.</div>
+  </footer>
+</div>
+
+<script>
+  // The master deck (English → Español). Duplicates kept if present in the list.
+  const baseCards = [
+    ["Clown","Payaso"],["Balloon","Globo"],["Sewer","Alcantarilla"],
+    ["Fear","Miedo"],["Children","Niños"],["Losers’ Club","El Club de los Perdedores"],
+    ["Friendship","Amistad"],["Monster","Monstruo"],["Nightmare","Pesadilla"],
+    ["dream","sueño"],["Blood","Sangre"],["Death","Muerte"],
+    ["Courage","Valentía"],["Darkness","Oscuridad"],["Brotherhood","Hermandad"],
+    ["Curse","Maldición"],["Disappearance","Desaparición"],["Floating","Flotar"],
+    ["Drain","Desagüe"],["Storm","Tormenta"],["Spider","Araña"],
+    ["Laughter","Risa"],["Scream","Grito"],["Float","Flotar"],
+    ["You’ll float too","Tú también flotarás"],["Missing","Desaparecido"],
+    ["Underground","Subterráneo"],["padlock","candado"],["clue","pista"],
+    ["key","llave"],["combination","combinación"],["riddle","puzzle / acertijo"],
+    ["code","código"],["enigma","enigma"],["door","puerta"],
+    ["lock","cerradura"],["to hide","esconder"],["to discover","descubrir"],
+    ["secret","secreto"],["maze / labyrinth","laberinto"],["mirror","espejo"],
+    ["reflection","reflejo"],["labyrinth","laberinto"],["corridor","pasillo"],
+    ["stairway","escalera"],["basement","sótano"],["attic","desván"],
+    ["mechanism","mecanismo"],["lever","palanca"],["button","botón"],
+    ["switch","interruptor"],["drawer","cajón"],["chest / trunk","cofre / baúl"],
+    ["rope","cuerda"],["chain","cadena"],["symbol","símbolo"],
+    ["number","número"],["letter","letra"],["word","palabra"],
+    ["phrase","frase"],["light","luz"],["candle","vela"],
+    ["clock","reloj"],["time","tiempo"],["map","mapa"],["hidden","oculto"],
+    ["safe","caja fuerte"],["message","mensaje"],["password","contraseña"],
+    ["puzzle piece","pieza de rompecabezas"],["board","tablero"],["pattern","patrón"],
+    ["sequence","secuencia"],["sound","sonido"],["noise","ruido"],
+    ["painting","cuadro"],["photograph","fotografía"],["drawer","cajón"]
+  ];
+
+  // State
+  let cards = baseCards.slice();
+  let index = 0;
+  let showingFront = true;     // true => show front; false => show back
+  let englishFirst = true;     // front language (true: English, false: Español)
+
+  const wordEl = document.getElementById('word');
+  const countEl = document.getElementById('count');
+  const progEl = document.getElementById('prog');
+  const subEl = document.getElementById('sub');
+  const cardEl = document.getElementById('card');
+
+  // Initialize
+  function init() {
+    index = 0; showingFront = true;
+    syncSub();
+    showCard();
+    setupGestures();
+  }
+
+  function syncSub() {
+    subEl.textContent = englishFirst ? "Front: English • Back: Español" : "Front: Español • Back: English";
+  }
+
+  function currentText() {
+    if (!cards.length) return "No cards";
+    const pair = cards[index];
+    if (showingFront) return englishFirst ? pair[0] : pair[1];
+    return englishFirst ? pair[1] : pair[0];
+  }
+
+  function showCard() {
+    wordEl.textContent = currentText();
+    countEl.textContent = (cards.length ? (index+1) : 0) + " / " + cards.length;
+    const pct = cards.length ? ((index+1)/cards.length)*100 : 0;
+    progEl.style.width = pct + "%";
+  }
+
+  function flipCard() { showingFront = !showingFront; showCard(); }
+  function nextCard() { index = (index + 1) % cards.length; showingFront = true; showCard(); }
+  function prevCard() { index = (index - 1 + cards.length) % cards.length; showingFront = true; showCard(); }
+
+  function shuffleCards() {
+    for (let i = cards.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cards[i], cards[j]] = [cards[j], cards[i]];
+    }
+    index = 0; showingFront = true; showCard();
+  }
+  function resetOrder() { cards = baseCards.slice(); index = 0; showingFront = true; showCard(); }
+  function toggleFront() { englishFirst = !englishFirst; showingFront = true; syncSub(); showCard(); }
+
+  // Swipe gestures (mobile-friendly)
+  function setupGestures() {
+    let startX = null;
+    cardEl.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; }, {passive:true});
+    cardEl.addEventListener('touchend', (e) => {
+      if (startX === null) return;
+      const endX = e.changedTouches[0].clientX;
+      const dx = endX - startX;
+      if (Math.abs(dx) < 40) { flipCard(); } // small move → flip
+      else if (dx < 0) { nextCard(); } // swipe left
+      else { prevCard(); }             // swipe right
+      startX = null;
+    }, {passive:true});
+    // Also allow click/tap to flip
+    cardEl.addEventListener('click', flipCard);
+  }
+
+  // Start
+  window.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
